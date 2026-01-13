@@ -8,11 +8,10 @@ import com.example.newsapp.data.remote.RetrofitClient
 import com.example.newsapp.data.remote.toEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.jsoup.Jsoup // Import thư viện Jsoup
+import org.jsoup.Jsoup
 
 /**
  * Repository quản lý việc điều phối dữ liệu giữa Local Database (Room) và Remote API (Retrofit).
- * Đảm bảo ứng dụng có thể hoạt động Offline bằng cách luôn hiển thị dữ liệu từ Room.
  */
 class NewsRepository(
     private val articleDao: ArticleDao,
@@ -26,16 +25,19 @@ class NewsRepository(
     val favoriteArticles: LiveData<List<Article>> = articleDao.getFavoriteArticles()
 
     /**
-     * Tải tin tức mới từ API và cập nhật vào Database.
+     * Tải tin tức mới từ API theo danh mục và cập nhật vào Database.
+     * CẬP NHẬT: Thêm tham số category để hỗ trợ tính năng phân loại tin tức.
      */
-    suspend fun refreshArticles() {
+    suspend fun refreshArticles(category: String) {
         withContext(Dispatchers.IO) {
             try {
-                val response = apiService.getTopHeadlines("us", RetrofitClient.API_KEY)
+                // Gọi API lấy tin tức hàng đầu dựa trên quốc gia và danh mục được chọn
+                val response = apiService.getTopHeadlines("us", category, RetrofitClient.API_KEY)
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
                         val localArticles = remoteArticles.mapNotNull { it.toEntity() }
                         if (localArticles.isNotEmpty()) {
+                            // Dọn dẹp các tin cũ không yêu thích trước khi nạp tin mới của danh mục này
                             articleDao.deleteAllNonFavorites()
                             articleDao.insertAll(localArticles)
                         }
@@ -55,14 +57,12 @@ class NewsRepository(
             val isBecomingFavorite = !article.isFavorite
 
             val updatedArticle = if (isBecomingFavorite) {
-                // Nếu người dùng nhấn yêu thích -> Tải nội dung bài báo đầy đủ
                 val fullContent = downloadFullContent(article.url)
                 article.copy(
                     isFavorite = true,
-                    savedFullContent = fullContent // Lưu văn bản đã cào được
+                    savedFullContent = fullContent
                 )
             } else {
-                // Nếu người dùng bỏ yêu thích -> Xóa nội dung offline để giải phóng bộ nhớ
                 article.copy(
                     isFavorite = false,
                     savedFullContent = null
@@ -79,10 +79,7 @@ class NewsRepository(
     private suspend fun downloadFullContent(url: String): String? {
         return withContext(Dispatchers.IO) {
             try {
-                // Kết nối tới URL và tải tài liệu HTML (Timeout sau 10 giây)
                 val doc = Jsoup.connect(url).timeout(10000).get()
-
-                // Lấy tất cả các thẻ <p> (đoạn văn) trong bài báo
                 val paragraphs = doc.select("p")
                 val contentBuilder = StringBuilder()
 
@@ -103,16 +100,25 @@ class NewsRepository(
     }
 
     /**
-     * Tìm kiếm bài báo (Kết quả tìm kiếm cũng được lưu vào DB để xem offline)
+     * Tìm kiếm bài báo.
      */
     suspend fun searchNews(query: String) {
         withContext(Dispatchers.IO) {
             try {
-                val response = apiService.searchNews(query, RetrofitClient.API_KEY)
+                val response = apiService.searchNews(
+                    query = query,
+                    apiKey = RetrofitClient.API_KEY,
+                    searchIn = "title,description",
+                    sortBy = "relevancy"
+                )
+
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
                         val localArticles = remoteArticles.mapNotNull { it.toEntity() }
-                        articleDao.insertAll(localArticles)
+                        if (localArticles.isNotEmpty()) {
+                            articleDao.deleteAllNonFavorites()
+                            articleDao.insertAll(localArticles)
+                        }
                     }
                 }
             } catch (e: Exception) {

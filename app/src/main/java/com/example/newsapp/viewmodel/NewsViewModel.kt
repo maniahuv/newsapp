@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
     // 1. Luồng dữ liệu "Sống": Quan sát trực tiếp từ Database thông qua Repository.
+    // Tự động cập nhật UI mỗi khi Database thay đổi (Single Source of Truth).
     val allArticles: LiveData<List<Article>> = repository.allArticles
     val favoriteArticles: LiveData<List<Article>> = repository.favoriteArticles
 
@@ -25,21 +26,35 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> get() = _errorMessage
 
+    // BỔ SUNG: Biến lưu trữ danh mục hiện tại (mặc định là 'general')
+    private var currentCategory = "general"
+
     init {
+        // Tự động tải tin tức mới nhất khi App vừa khởi động
         refreshNews()
     }
 
     /**
-     * Đồng bộ tin tức từ API về Database.
+     * BỔ SUNG: Cập nhật danh mục mới và tải lại dữ liệu.
+     * Được gọi khi người dùng nhấn chuyển Tab trên giao diện.
+     */
+    fun setCategory(category: String) {
+        currentCategory = category
+        refreshNews()
+    }
+
+    /**
+     * Đồng bộ tin tức nóng hổi từ API về Database theo danh mục hiện tại.
      */
     fun refreshNews() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                repository.refreshArticles()
+                // CẬP NHẬT: Truyền currentCategory vào repository
+                repository.refreshArticles(currentCategory)
             } catch (e: Exception) {
-                _errorMessage.value = "Lỗi cập nhật: ${e.localizedMessage}"
+                _errorMessage.value = "Không thể kết nối máy chủ: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
             }
@@ -47,26 +62,29 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     /**
-     * Xử lý logic khi người dùng nhấn nút Yêu thích bài báo.
-     * CẬP NHẬT: Thêm loading vì quá trình này bao gồm việc cào dữ liệu HTML (Offline Mode).
+     * Xử lý lưu/xóa yêu thích.
+     * Quá trình này bao gồm việc Jsoup cào nội dung chi tiết để phục vụ đọc Offline.
      */
     fun toggleFavorite(article: Article) {
         viewModelScope.launch {
-            _isLoading.value = true // Hiện loading trong lúc Jsoup đang cào bài báo
+            // Hiện loading vì Jsoup cần thời gian cào dữ liệu qua mạng
+            _isLoading.value = true
             try {
                 repository.toggleFavorite(article)
             } catch (e: Exception) {
-                _errorMessage.value = "Không thể lưu bài báo để đọc offline"
+                _errorMessage.value = "Lỗi khi xử lý bài báo: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false // Tắt loading khi đã lưu xong vào Room
+                _isLoading.value = false
             }
         }
     }
 
     /**
      * Tìm kiếm tin tức theo từ khóa.
+     * Kết quả tìm kiếm từ API sẽ được ghi đè vào Room Database.
      */
     fun searchNews(query: String) {
+        // Nếu xóa trắng ô tìm kiếm, tự động quay về tin tức của danh mục hiện tại
         if (query.isBlank()) {
             refreshNews()
             return
@@ -78,13 +96,16 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
             try {
                 repository.searchNews(query)
             } catch (e: Exception) {
-                _errorMessage.value = "Lỗi tìm kiếm: ${e.message}"
+                _errorMessage.value = "Không tìm thấy kết quả cho: '$query'"
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
+    /**
+     * Xóa thông báo lỗi sau khi UI đã hiển thị Toast cho người dùng.
+     */
     fun clearErrorMessage() {
         _errorMessage.value = null
     }

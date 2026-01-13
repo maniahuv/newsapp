@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Article::class], version = 1, exportSchema = false)
+@Database(entities = [Article::class], version = 2, exportSchema = false)
 abstract class NewsDatabase : RoomDatabase() {
 
     // Đổi tên thành getArticleDao để khớp với lời gọi trong MainActivity
