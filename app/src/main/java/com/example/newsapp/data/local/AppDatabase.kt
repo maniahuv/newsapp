@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 // Thêm exportSchema = false để tránh cảnh báo khi build
-@Database(entities = [Article::class], version = 1, exportSchema = false)
+@Database(entities = [Article::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun articleDao(): ArticleDao
