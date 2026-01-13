@@ -4,6 +4,8 @@ import androidx.lifecycle.LiveData
 import com.example.newsapp.data.local.Article
 import com.example.newsapp.data.local.ArticleDao
 import com.example.newsapp.data.remote.NewsApiService
+import com.example.newsapp.data.remote.RetrofitClient // Import để dùng API_KEY
+import com.example.newsapp.data.remote.toEntity       // Import hàm mở rộng toEntity()
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -21,45 +23,38 @@ class NewsRepository(private val articleDao: ArticleDao) {
     suspend fun refreshArticles(apiService: NewsApiService) {
         withContext(Dispatchers.IO) {
             try {
-                val response = apiService.getTopHeadlines("us", "9cd24df32c8542208fe943a19d70c70c")
+                // 1. Sử dụng API_KEY tập trung từ RetrofitClient thay vì hardcode
+                val response = apiService.getTopHeadlines("us", RetrofitClient.API_KEY)
+
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
-                        // Chuyển đổi dữ liệu từ API sang Entity của Room
-                        val localArticles = remoteArticles.map { remote ->
-                            Article(
-                                url = remote.url ?: "",                 // ❗ BẮT BUỘC
-                                title = remote.title ?: "No Title",
-                                author = remote.author ?: "",
-                                description = remote.description ?: "",
-                                urlToImage = remote.urlToImage ?: "",
-                                publishedAt = remote.publishedAt ?: "",
-                                content = remote.content ?: ""
-                            )
-                        }
-                        // Xóa tin cũ và chèn tin mới để đảm bảo dữ liệu luôn mới nhất
-                        articleDao.deleteAll()
-                        articleDao.insertArticles(localArticles)
+                        // 2. Sử dụng mapNotNull kết hợp toEntity() để lọc bỏ các bài báo
+                        // có URL bị null hoặc dữ liệu lỗi (tránh crash Room Primary Key)
+                        val localArticles = remoteArticles.mapNotNull { it.toEntity() }
+
+                        // 3. Sử dụng deleteAllNonFavorites() thay vì deleteAll()
+                        // để giữ lại các bài báo người dùng đã nhấn "Yêu thích"
+                        articleDao.deleteAllNonFavorites()
+
+                        // 4. Chèn dữ liệu mới đã được chuẩn hóa
+                        articleDao.insertAll(localArticles)
                     }
                 }
             } catch (e: Exception) {
+                // Có thể log lỗi ở đây hoặc throw để UI xử lý
                 throw e
             }
         }
     }
 
     /**
-     * Hàm đảo ngược trạng thái yêu thích.
-     * ĐÂY LÀ NƠI DỄ GÂY LỖI 'if must have both branches'
+     * Đảo ngược trạng thái yêu thích và cập nhật vào Database.
      */
     suspend fun toggleFavorite(article: Article) {
-        // CÁCH VIẾT SAI GÂY LỖI: article.isFavorite = if (article.isFavorite) false
-
-        // CÁCH VIẾT ĐÚNG 1: Sử dụng ! (Nên dùng cách này cho Boolean)
+        // Đảo trạng thái Boolean một cách ngắn gọn
         article.isFavorite = !article.isFavorite
 
-        // CÁCH VIẾT ĐÚNG 2 (Nếu dùng if): Phải có đủ ELSE
-        // article.isFavorite = if (article.isFavorite) false else true
-
+        // Cập nhật xuống database
         articleDao.updateArticle(article)
     }
 }
