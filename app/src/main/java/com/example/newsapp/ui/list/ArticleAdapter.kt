@@ -13,11 +13,10 @@ import com.example.newsapp.databinding.ItemArticleBinding
 
 /**
  * Adapter sử dụng ListAdapter để tối ưu hóa việc cập nhật danh sách.
- * Khi biến isFavorite thay đổi, DiffUtil sẽ phát hiện và chỉ vẽ lại item đó.
  */
 class ArticleAdapter(
     private val onItemClick: (Article) -> Unit,
-    private val onFavoriteClick: (Article) -> Unit // Callback xử lý lưu/xóa yêu thích
+    private val onFavoriteClick: (Article) -> Unit
 ) : ListAdapter<Article, ArticleAdapter.ArticleViewHolder>(ArticleDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ArticleViewHolder {
@@ -38,26 +37,33 @@ class ArticleAdapter(
 
         fun bind(article: Article) {
             binding.apply {
-                // 1. Hiển thị thông tin văn bản
-                tvTitle.text = article.title
-                tvDescription.text = article.description.ifBlank { "Không có mô tả cho bài báo này." }
-                tvPublishedAt.text = article.publishedAt.substringBefore("T") // Cắt chuỗi lấy yyyy-MM-dd
+                // 1. Hiển thị thông tin văn bản (Xử lý Null-safe)
+                tvTitle.text = article.title ?: "Không có tiêu đề"
 
-                // 2. Cập nhật trạng thái và màu sắc nút Yêu thích
-                // Sử dụng icon sao đặc nếu đã lưu, sao rỗng nếu chưa
-                val favoriteIcon = if (article.isFavorite) {
-                    android.R.drawable.btn_star_big_on
+                // Kiểm tra description null hoặc trống
+                tvDescription.text = if (article.description.isNullOrBlank()) {
+                    "Không có mô tả cho bài báo này."
                 } else {
-                    android.R.drawable.btn_star_big_off
+                    article.description
+                }
+
+                // Cắt chuỗi ngày tháng an toàn với ?.
+                tvPublishedAt.text = article.publishedAt?.substringBefore("T") ?: "Không rõ ngày"
+
+                // 2. Cập nhật trạng thái nút Yêu thích
+                // Sử dụng icon trái tim đã tạo để đồng bộ với DetailFragment
+                val favoriteIcon = if (article.isFavorite) {
+                    R.drawable.ic_favorite_filled
+                } else {
+                    R.drawable.ic_favorite_border
                 }
                 ivFavorite.setImageResource(favoriteIcon)
 
-                // Sửa lỗi "luôn màu tím": Thay đổi màu sắc (Tint) bằng code
-                // Nếu đã lưu thì hiện màu Vàng Gold, nếu chưa thì hiện màu Xám
+                // Thay đổi màu sắc (Tint) để icon trông nổi bật
                 val tintColor = if (article.isFavorite) {
-                    Color.parseColor("#FFD700") // Vàng Gold
+                    Color.parseColor("#E91E63") // Màu hồng đỏ
                 } else {
-                    Color.parseColor("#9E9E9E") // Xám
+                    Color.parseColor("#9E9E9E") // Màu xám
                 }
                 ivFavorite.setColorFilter(tintColor)
 
@@ -85,7 +91,6 @@ class ArticleAdapter(
         }
 
         override fun areContentsTheSame(oldItem: Article, newItem: Article): Boolean {
-            // Quan trọng: Phải so sánh toàn bộ object để DiffUtil thấy sự thay đổi của isFavorite
             return oldItem == newItem
         }
     }

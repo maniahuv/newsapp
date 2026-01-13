@@ -15,10 +15,7 @@ import kotlinx.coroutines.launch
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
     // 1. Luồng dữ liệu "Sống": Quan sát trực tiếp từ Database thông qua Repository.
-    // Màn hình danh sách chính sẽ quan sát biến này.
     val allArticles: LiveData<List<Article>> = repository.allArticles
-
-    // Màn hình "Yêu thích" sẽ quan sát biến này.
     val favoriteArticles: LiveData<List<Article>> = repository.favoriteArticles
 
     // 2. Quản lý trạng thái UI (Loading, Error).
@@ -29,13 +26,11 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     val errorMessage: LiveData<String?> get() = _errorMessage
 
     init {
-        // Tự động tải tin mới nhất từ API ngay khi ứng dụng khởi chạy.
         refreshNews()
     }
 
     /**
      * Đồng bộ tin tức từ API về Database.
-     * UI sẽ tự động cập nhật khi Database có dữ liệu mới nhờ LiveData.
      */
     fun refreshNews() {
         viewModelScope.launch {
@@ -44,7 +39,6 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
             try {
                 repository.refreshArticles()
             } catch (e: Exception) {
-                // Nếu lỗi (ví dụ mất mạng), app vẫn hiển thị dữ liệu cũ trong Room.
                 _errorMessage.value = "Lỗi cập nhật: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
@@ -54,20 +48,23 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
     /**
      * Xử lý logic khi người dùng nhấn nút Yêu thích bài báo.
+     * CẬP NHẬT: Thêm loading vì quá trình này bao gồm việc cào dữ liệu HTML (Offline Mode).
      */
     fun toggleFavorite(article: Article) {
         viewModelScope.launch {
+            _isLoading.value = true // Hiện loading trong lúc Jsoup đang cào bài báo
             try {
                 repository.toggleFavorite(article)
             } catch (e: Exception) {
-                _errorMessage.value = "Không thể cập nhật yêu thích"
+                _errorMessage.value = "Không thể lưu bài báo để đọc offline"
+            } finally {
+                _isLoading.value = false // Tắt loading khi đã lưu xong vào Room
             }
         }
     }
 
     /**
      * Tìm kiếm tin tức theo từ khóa.
-     * Kết quả tìm kiếm sẽ được lưu vào Database và hiển thị qua allArticles.
      */
     fun searchNews(query: String) {
         if (query.isBlank()) {
@@ -88,9 +85,6 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
         }
     }
 
-    /**
-     * Xóa thông báo lỗi sau khi đã hiển thị trên UI (ví dụ qua Toast hoặc Snackbar).
-     */
     fun clearErrorMessage() {
         _errorMessage.value = null
     }

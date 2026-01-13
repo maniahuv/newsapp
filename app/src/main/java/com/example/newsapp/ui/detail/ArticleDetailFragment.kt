@@ -6,25 +6,27 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import com.bumptech.glide.Glide
+import com.example.newsapp.MainActivity
 import com.example.newsapp.R
 import com.example.newsapp.databinding.FragmentArticleDetailBinding
+import com.example.newsapp.viewmodel.NewsViewModel
 
 class ArticleDetailFragment : Fragment() {
 
     private var _binding: FragmentArticleDetailBinding? = null
     private val binding get() = _binding!!
 
-    // Sử dụng Safe Args để nhận dữ liệu từ màn hình danh sách truyền sang
     private val args: ArticleDetailFragmentArgs by navArgs()
+    private lateinit var viewModel: NewsViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Sử dụng View Binding để quản lý UI
         _binding = FragmentArticleDetailBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -32,24 +34,59 @@ class ArticleDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Lấy đối tượng Article từ arguments đã khai báo trong nav_graph
+        // 1. Kết nối ViewModel từ MainActivity
+        viewModel = (activity as MainActivity).viewModel
         val article = args.article
 
-        // Gán dữ liệu lên các View trong layout fragment_article_detail.xml
+        // 2. Thiết lập giao diện ban đầu
+        setupUI(article)
+
+        // 3. Quan sát trạng thái Loading (Khi Jsoup đang tải báo offline)
+        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
+            binding.progressBarDetail.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+
+        // 4. Quan sát lỗi nếu có
+        viewModel.errorMessage.observe(viewLifecycleOwner) { message ->
+            message?.let {
+                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                viewModel.clearErrorMessage()
+            }
+        }
+
+        // 5. Xử lý nút Yêu thích & Tải Offline
+        binding.fabFavorite.setOnClickListener {
+            viewModel.toggleFavorite(article)
+            // Cập nhật lại icon ngay lập tức để tạo cảm giác mượt mà
+            article.isFavorite = !article.isFavorite
+            updateFavoriteIcon(article.isFavorite)
+        }
+    }
+
+    private fun setupUI(article: com.example.newsapp.data.local.Article) {
         binding.apply {
             tvDetailTitle.text = article.title
-            tvDetailAuthor.text = "Tác giả: ${article.author}"
+            tvDetailAuthor.text = "Tác giả: ${article.author ?: "Ẩn danh"}"
             tvDetailPublishedAt.text = " • ${article.publishedAt}"
-            tvDetailDescription.text = article.description
-            tvDetailContent.text = article.content
 
-            // Sử dụng thư viện Glide để tải ảnh bài báo
+            // LOGIC QUAN TRỌNG: Ưu tiên hiển thị nội dung Offline nếu có
+            if (!article.savedFullContent.isNullOrEmpty()) {
+                tvDetailDescription.visibility = View.GONE // Ẩn mô tả ngắn
+                tvDetailContent.text = article.savedFullContent // Hiện nội dung đầy đủ
+                Toast.makeText(context, "Đang đọc ở chế độ Offline", Toast.LENGTH_SHORT).show()
+            } else {
+                tvDetailDescription.visibility = View.VISIBLE
+                tvDetailDescription.text = article.description
+                tvDetailContent.text = article.content ?: "Nhấn trái tim để tải nội dung đầy đủ."
+            }
+
+            updateFavoriteIcon(article.isFavorite)
+
             Glide.with(this@ArticleDetailFragment)
                 .load(article.urlToImage)
-                .placeholder(R.drawable.ic_launcher_background) // Ảnh chờ khi đang load
+                .placeholder(R.drawable.ic_launcher_background)
                 .into(ivDetailImage)
 
-            // Xử lý sự kiện khi nhấn nút "Xem trên trình duyệt"
             btnOpenBrowser.setOnClickListener {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.url))
                 startActivity(intent)
@@ -57,9 +94,13 @@ class ArticleDetailFragment : Fragment() {
         }
     }
 
+    private fun updateFavoriteIcon(isFavorite: Boolean) {
+        val icon = if (isFavorite) R.drawable.ic_favorite_filled else R.drawable.ic_favorite_border
+        binding.fabFavorite.setImageResource(icon)
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
-        // Giải phóng binding để tránh rò rỉ bộ nhớ (Memory Leak)
         _binding = null
     }
 }

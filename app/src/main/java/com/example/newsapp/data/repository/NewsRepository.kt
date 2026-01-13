@@ -8,6 +8,7 @@ import com.example.newsapp.data.remote.RetrofitClient
 import com.example.newsapp.data.remote.toEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jsoup.Jsoup // Import thư viện Jsoup
 
 /**
  * Repository quản lý việc điều phối dữ liệu giữa Local Database (Room) và Remote API (Retrofit).
@@ -30,22 +31,12 @@ class NewsRepository(
     suspend fun refreshArticles() {
         withContext(Dispatchers.IO) {
             try {
-                // Gọi API lấy tin tức mới nhất
                 val response = apiService.getTopHeadlines("us", RetrofitClient.API_KEY)
-
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
-                        // Chuyển đổi từ dữ liệu API (DTO) sang thực thể Database (Entity)
                         val localArticles = remoteArticles.mapNotNull { it.toEntity() }
-
                         if (localArticles.isNotEmpty()) {
-                            // CHIẾN LƯỢC CẬP NHẬT:
-                            // 1. Xóa các bài báo cũ để tránh tràn bộ nhớ (trừ những bài được Yêu thích)
                             articleDao.deleteAllNonFavorites()
-
-                            // 2. Chèn danh sách mới vào.
-                            // Lưu ý: Trong ArticleDao, hãy dùng OnConflictStrategy.IGNORE
-                            // để tránh ghi đè làm mất trạng thái 'isFavorite' của tin cũ đang xuất hiện lại.
                             articleDao.insertAll(localArticles)
                         }
                     }
@@ -57,12 +48,57 @@ class NewsRepository(
     }
 
     /**
-     * Đảo ngược trạng thái Yêu thích (Favorite/Unfavorite).
+     * Đảo ngược trạng thái Yêu thích và tải nội dung Offline nếu cần.
      */
     suspend fun toggleFavorite(article: Article) {
         withContext(Dispatchers.IO) {
-            val updatedArticle = article.copy(isFavorite = !article.isFavorite)
+            val isBecomingFavorite = !article.isFavorite
+
+            val updatedArticle = if (isBecomingFavorite) {
+                // Nếu người dùng nhấn yêu thích -> Tải nội dung bài báo đầy đủ
+                val fullContent = downloadFullContent(article.url)
+                article.copy(
+                    isFavorite = true,
+                    savedFullContent = fullContent // Lưu văn bản đã cào được
+                )
+            } else {
+                // Nếu người dùng bỏ yêu thích -> Xóa nội dung offline để giải phóng bộ nhớ
+                article.copy(
+                    isFavorite = false,
+                    savedFullContent = null
+                )
+            }
+
             articleDao.updateArticle(updatedArticle)
+        }
+    }
+
+    /**
+     * Hàm sử dụng Jsoup để tải HTML và trích xuất nội dung văn bản chính.
+     */
+    private suspend fun downloadFullContent(url: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Kết nối tới URL và tải tài liệu HTML (Timeout sau 10 giây)
+                val doc = Jsoup.connect(url).timeout(10000).get()
+
+                // Lấy tất cả các thẻ <p> (đoạn văn) trong bài báo
+                val paragraphs = doc.select("p")
+                val contentBuilder = StringBuilder()
+
+                for (p in paragraphs) {
+                    val text = p.text().trim()
+                    if (text.isNotEmpty()) {
+                        contentBuilder.append(text).append("\n\n")
+                    }
+                }
+
+                val result = contentBuilder.toString()
+                if (result.isBlank()) "Không tìm thấy nội dung văn bản phù hợp." else result
+            } catch (e: Exception) {
+                e.printStackTrace()
+                "Lỗi khi tải nội dung bài báo: ${e.message}"
+            }
         }
     }
 

@@ -56,7 +56,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-
+    implementation("org.jsoup:jsoup:1.17.2")
     // Giao diện danh sách
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
