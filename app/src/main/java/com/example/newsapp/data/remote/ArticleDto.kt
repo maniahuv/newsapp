@@ -49,3 +49,4 @@ fun ArticleDto.toEntity(): Article? {
         isFavorite = false // Khi lấy từ API về, mặc định luôn là chưa yêu thích
     )
 }
+

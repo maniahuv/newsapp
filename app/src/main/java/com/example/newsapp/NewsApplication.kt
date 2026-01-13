@@ -2,6 +2,7 @@ package com.example.newsapp
 
 import android.app.Application
 import com.example.newsapp.data.local.AppDatabase
+import com.example.newsapp.data.remote.RetrofitClient
 import com.example.newsapp.data.repository.NewsRepository
 
 /**
@@ -19,7 +20,7 @@ class NewsApplication : Application() {
     // Repository là nguồn dữ liệu duy nhất cho toàn bộ ứng dụng.
     // Nó được khởi tạo bằng cách truyền vào ArticleDao từ Database.
     val repository by lazy {
-        NewsRepository(database.articleDao())
+        NewsRepository(database.articleDao(), RetrofitClient.instance)
     }
 
     override fun onCreate() {

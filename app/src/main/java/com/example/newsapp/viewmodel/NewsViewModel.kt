@@ -5,48 +5,47 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.newsapp.data.local.Article
-import com.example.newsapp.data.remote.RetrofitClient
 import com.example.newsapp.data.repository.NewsRepository
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel quản lý dữ liệu cho màn hình danh sách tin tức.
+ * ViewModel quản lý logic và trạng thái dữ liệu cho các màn hình tin tức.
+ * Cung cấp dữ liệu từ Room Database dưới dạng LiveData để UI tự động cập nhật.
  */
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
-    // 1. Quan sát danh sách bài báo từ Repository (Single Source of Truth)
+    // 1. Luồng dữ liệu "Sống": Quan sát trực tiếp từ Database thông qua Repository.
+    // Màn hình danh sách chính sẽ quan sát biến này.
     val allArticles: LiveData<List<Article>> = repository.allArticles
 
-    // 2. Quan sát danh sách bài báo yêu thích
+    // Màn hình "Yêu thích" sẽ quan sát biến này.
     val favoriteArticles: LiveData<List<Article>> = repository.favoriteArticles
 
-    // 3. Trạng thái Loading để hiển thị ProgressBar trên UI
+    // 2. Quản lý trạng thái UI (Loading, Error).
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> get() = _isLoading
 
-    // 4. Thông báo lỗi để hiển thị cho người dùng
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> get() = _errorMessage
 
     init {
-        // Tự động tải tin tức mới ngay khi khởi tạo ViewModel
+        // Tự động tải tin mới nhất từ API ngay khi ứng dụng khởi chạy.
         refreshNews()
     }
 
     /**
-     * Làm mới danh sách tin tức từ Server.
+     * Đồng bộ tin tức từ API về Database.
+     * UI sẽ tự động cập nhật khi Database có dữ liệu mới nhờ LiveData.
      */
     fun refreshNews() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
-
             try {
-                // Gọi Repository để lấy dữ liệu mới từ API và cập nhật Database
-                repository.refreshArticles(RetrofitClient.instance)
+                repository.refreshArticles()
             } catch (e: Exception) {
-                // Xử lý các lỗi kết nối hoặc phân tích dữ liệu
-                _errorMessage.value = "Không thể cập nhật tin tức: ${e.localizedMessage}"
+                // Nếu lỗi (ví dụ mất mạng), app vẫn hiển thị dữ liệu cũ trong Room.
+                _errorMessage.value = "Lỗi cập nhật: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
             }
@@ -54,20 +53,21 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     /**
-     * Chức năng thay đổi trạng thái "Yêu thích" của bài báo.
+     * Xử lý logic khi người dùng nhấn nút Yêu thích bài báo.
      */
     fun toggleFavorite(article: Article) {
         viewModelScope.launch {
             try {
                 repository.toggleFavorite(article)
             } catch (e: Exception) {
-                _errorMessage.value = "Không thể cập nhật trạng thái yêu thích"
+                _errorMessage.value = "Không thể cập nhật yêu thích"
             }
         }
     }
 
     /**
-     * (Tùy chọn) Chức năng tìm kiếm tin tức theo từ khóa.
+     * Tìm kiếm tin tức theo từ khóa.
+     * Kết quả tìm kiếm sẽ được lưu vào Database và hiển thị qua allArticles.
      */
     fun searchNews(query: String) {
         if (query.isBlank()) {
@@ -77,9 +77,9 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
             try {
-                // Logic tìm kiếm có thể được bổ sung thêm vào Repository
-                // Ví dụ: repository.searchArticles(RetrofitClient.instance, query)
+                repository.searchNews(query)
             } catch (e: Exception) {
                 _errorMessage.value = "Lỗi tìm kiếm: ${e.message}"
             } finally {
@@ -89,7 +89,7 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     /**
-     * Xóa thông báo lỗi sau khi đã hiển thị trên UI.
+     * Xóa thông báo lỗi sau khi đã hiển thị trên UI (ví dụ qua Toast hoặc Snackbar).
      */
     fun clearErrorMessage() {
         _errorMessage.value = null

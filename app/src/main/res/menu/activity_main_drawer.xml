@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/main_group" android:checkableBehavior="single">
+        <item
+            android:id="@+id/articleListFragment"
+            android:icon="@android:drawable/ic_menu_today"
+            android:title="Tin mới nhất" />
+        <item
+            android:id="@+id/favoriteFragment"
+            android:icon="@android:drawable/btn_star_big_on"
+            android:title="Tin đã lưu" />
+    </group>
+
+    <item android:title="Chuyên mục">
+        <menu>
+            <item
+                android:id="@+id/nav_business"
+                android:title="Kinh doanh" />
+            <item
+                android:id="@+id/nav_tech"
+                android:title="Công nghệ" />
+        </menu>
+    </item>
+</menu>
