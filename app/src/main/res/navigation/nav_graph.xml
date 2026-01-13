@@ -8,10 +8,20 @@
     <fragment
         android:id="@+id/articleListFragment"
         android:name="com.example.newsapp.ui.list.ArticleListFragment"
-        android:label="Tin tức"
+        android:label="Tin mới nhất"
         tools:layout="@layout/fragment_article_list">
         <action
             android:id="@+id/action_articleListFragment_to_articleDetailFragment"
+            app:destination="@id/articleDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/favoriteFragment"
+        android:name="com.example.newsapp.ui.favorite.FavoriteFragment"
+        android:label="Tin đã lưu"
+        tools:layout="@layout/fragment_favorite">
+        <action
+            android:id="@+id/action_favoriteFragment_to_articleDetailFragment"
             app:destination="@id/articleDetailFragment" />
     </fragment>
 
@@ -24,4 +34,17 @@
             android:name="article"
             app:argType="com.example.newsapp.data.local.Article" />
     </fragment>
+
+    <fragment
+        android:id="@+id/nav_business"
+        android:name="com.example.newsapp.ui.list.ArticleListFragment"
+        android:label="Kinh doanh"
+        tools:layout="@layout/fragment_article_list" />
+
+    <fragment
+        android:id="@+id/nav_tech"
+        android:name="com.example.newsapp.ui.list.ArticleListFragment"
+        android:label="Công nghệ"
+        tools:layout="@layout/fragment_article_list" />
+
 </navigation>

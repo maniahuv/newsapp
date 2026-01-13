@@ -15,50 +15,49 @@ import kotlinx.coroutines.withContext
  */
 class NewsRepository(
     private val articleDao: ArticleDao,
-    private val apiService: NewsApiService // Thêm vào constructor để quản lý tập trung
+    private val apiService: NewsApiService
 ) {
 
-    // Danh sách toàn bộ bài báo, LiveData sẽ tự động cập nhật khi Database thay đổi
+    // Danh sách toàn bộ bài báo từ DB, hiển thị ở trang chủ
     val allArticles: LiveData<List<Article>> = articleDao.getAllArticles()
 
-    // Danh sách bài báo đã được đánh dấu yêu thích
+    // Danh sách các bài báo người dùng đã nhấn Yêu thích
     val favoriteArticles: LiveData<List<Article>> = articleDao.getFavoriteArticles()
 
     /**
      * Tải tin tức mới từ API và cập nhật vào Database.
-     * Sử dụng Dispatchers.IO để không gây treo giao diện (UI Thread).
      */
     suspend fun refreshArticles() {
         withContext(Dispatchers.IO) {
             try {
-                // Lấy tin tức từ API sử dụng API_KEY tập trung
+                // Gọi API lấy tin tức mới nhất
                 val response = apiService.getTopHeadlines("us", RetrofitClient.API_KEY)
 
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
-                        // Chuyển đổi DTO sang Entity và lọc bỏ bài báo không hợp lệ (URL null/empty)
-                        // Việc này cực kỳ quan trọng vì URL là Khóa chính (Primary Key) trong Room
+                        // Chuyển đổi từ dữ liệu API (DTO) sang thực thể Database (Entity)
                         val localArticles = remoteArticles.mapNotNull { it.toEntity() }
 
                         if (localArticles.isNotEmpty()) {
-                            // 1. Xóa các bài báo cũ NHƯNG giữ lại bài báo Yêu thích
+                            // CHIẾN LƯỢC CẬP NHẬT:
+                            // 1. Xóa các bài báo cũ để tránh tràn bộ nhớ (trừ những bài được Yêu thích)
                             articleDao.deleteAllNonFavorites()
 
-                            // 2. Lưu danh sách mới vào Database
+                            // 2. Chèn danh sách mới vào.
+                            // Lưu ý: Trong ArticleDao, hãy dùng OnConflictStrategy.IGNORE
+                            // để tránh ghi đè làm mất trạng thái 'isFavorite' của tin cũ đang xuất hiện lại.
                             articleDao.insertAll(localArticles)
                         }
                     }
                 }
             } catch (e: Exception) {
-                // In lỗi ra console để debug, LiveData vẫn giữ dữ liệu cũ để xem Offline
                 e.printStackTrace()
             }
         }
     }
 
     /**
-     * Cập nhật trạng thái Yêu thích của bài báo.
-     * Sử dụng .copy() để đảm bảo tính bất biến (Immutability) của Data Class.
+     * Đảo ngược trạng thái Yêu thích (Favorite/Unfavorite).
      */
     suspend fun toggleFavorite(article: Article) {
         withContext(Dispatchers.IO) {
@@ -68,7 +67,7 @@ class NewsRepository(
     }
 
     /**
-     * Tìm kiếm bài báo từ API (Tính năng mở rộng)
+     * Tìm kiếm bài báo (Kết quả tìm kiếm cũng được lưu vào DB để xem offline)
      */
     suspend fun searchNews(query: String) {
         withContext(Dispatchers.IO) {
@@ -77,7 +76,6 @@ class NewsRepository(
                 if (response.isSuccessful) {
                     response.body()?.articles?.let { remoteArticles ->
                         val localArticles = remoteArticles.mapNotNull { it.toEntity() }
-                        // Chèn thêm vào DB, nếu trùng URL sẽ tự động ghi đè nhờ OnConflictStrategy.REPLACE
                         articleDao.insertAll(localArticles)
                     }
                 }

@@ -20,5 +20,5 @@ data class Article(
     val content: String,
 
     // Trường này dùng để xử lý logic lưu bài báo yêu thích, không bị ghi đè khi làm mới API
-    val isFavorite: Boolean = false
+    var isFavorite: Boolean = false
 ) : Parcelable
