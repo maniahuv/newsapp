@@ -25,7 +25,11 @@ object RetrofitClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    val instance: NewsApiService by lazy {
+    /**
+     * Đổi tên từ 'instance' thành 'apiService' để khớp với lệnh gọi trong MainActivity:
+     * NewsRepository(articleDao, RetrofitClient.apiService)
+     */
+    val apiService: NewsApiService by lazy {
         val retrofit = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient) // Gán client đã cấu hình vào Retrofit

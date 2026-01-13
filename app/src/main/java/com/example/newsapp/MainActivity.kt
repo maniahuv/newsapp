@@ -5,16 +5,23 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
+import com.example.newsapp.data.local.NewsDatabase
+import com.example.newsapp.data.remote.RetrofitClient
+import com.example.newsapp.data.repository.NewsRepository
 import com.example.newsapp.databinding.ActivityMainBinding
+import com.example.newsapp.viewmodel.NewsViewModel
+import com.example.newsapp.viewmodel.NewsViewModelFactory
 
 class MainActivity : AppCompatActivity() {
-
+    // Biến public để các Fragment có thể truy cập qua (activity as MainActivity).viewModel
+    lateinit var viewModel: NewsViewModel
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
     private lateinit var appBarConfiguration: AppBarConfiguration
@@ -29,8 +36,14 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // --- BỔ SUNG: KHỞI TẠO VIEWMODEL ---
+        val articleDao = NewsDatabase.getDatabase(this).getArticleDao()
+        val repository = NewsRepository(articleDao, RetrofitClient.apiService)
+        val viewModelFactory = NewsViewModelFactory(repository)
+        viewModel = ViewModelProvider(this, viewModelFactory)[NewsViewModel::class.java]
+        // ---------------------------------
+
         // 3. Xử lý WindowInsets (Tránh lấp nội dung bởi thanh hệ thống)
-        // Lưu ý: ID 'main' phải khớp với ID của DrawerLayout trong activity_main.xml
         ViewCompat.setOnApplyWindowInsetsListener(binding.main) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -49,9 +62,7 @@ class MainActivity : AppCompatActivity() {
         // Thiết lập Toolbar thay thế cho ActionBar mặc định
         setSupportActionBar(binding.toolbar)
 
-        // Cập nhật Set các trang "Cấp cao nhất" (Top-level destinations)
-        // Những trang này sẽ hiện nút Menu thay vì nút Back.
-        // ID phải trùng khớp hoàn toàn với nav_graph.xml và activity_main_drawer.xml
+        // Cập nhật Set các trang "Cấp cao nhất"
         appBarConfiguration = AppBarConfiguration(
             setOf(
                 R.id.articleListFragment,
