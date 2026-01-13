@@ -1,44 +1,65 @@
 package com.example.newsapp.data.repository
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import com.example.newsapp.data.local.Article
 import com.example.newsapp.data.local.ArticleDao
 import com.example.newsapp.data.remote.NewsApiService
-import com.example.newsapp.data.remote.RetrofitClient
-import com.example.newsapp.data.remote.toEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class NewsRepository(private val articleDao: ArticleDao) {
 
-    // Đây là nguồn dữ liệu duy nhất mà UI sẽ quan sát
+    // Lấy toàn bộ bài báo từ database (Single Source of Truth)
     val allArticles: LiveData<List<Article>> = articleDao.getAllArticles()
 
+    // Lấy danh sách bài báo yêu thích
+    val favoriteArticles: LiveData<List<Article>> = articleDao.getFavoriteArticles()
+
+    /**
+     * Tải tin tức mới từ API và lưu vào database.
+     */
     suspend fun refreshArticles(apiService: NewsApiService) {
         withContext(Dispatchers.IO) {
             try {
-                // 1. Gọi API lấy tin mới (Truyền API_KEY thực tế từ RetrofitClient)
-                val response = apiService.getTopHeadlines(apiKey = RetrofitClient.API_KEY)
-
+                val response = apiService.getTopHeadlines("us", "9cd24df32c8542208fe943a19d70c70c")
                 if (response.isSuccessful) {
-                    val articlesApi = response.body()?.articles ?: emptyList()
-
-                    // 2. Chuyển đổi sang dạng Entity của Room
-                    val entities = articlesApi.map { it.toEntity() }
-
-                    // 3. Cập nhật Database (Sử dụng insertAll và deleteAll đã sửa ở DAO)
-                    articleDao.deleteAll()
-                    articleDao.insertAll(entities)
-                } else {
-                    // THÊM NHÁNH ELSE NÀY ĐỂ SỬA LỖI "if must have both main and else branches"
-                    Log.e("NewsRepository", "Lỗi API: ${response.code()} - ${response.message()}")
+                    response.body()?.articles?.let { remoteArticles ->
+                        // Chuyển đổi dữ liệu từ API sang Entity của Room
+                        val localArticles = remoteArticles.map { remote ->
+                            Article(
+                                url = remote.url ?: "",                 // ❗ BẮT BUỘC
+                                title = remote.title ?: "No Title",
+                                author = remote.author ?: "",
+                                description = remote.description ?: "",
+                                urlToImage = remote.urlToImage ?: "",
+                                publishedAt = remote.publishedAt ?: "",
+                                content = remote.content ?: ""
+                            )
+                        }
+                        // Xóa tin cũ và chèn tin mới để đảm bảo dữ liệu luôn mới nhất
+                        articleDao.deleteAll()
+                        articleDao.insertArticles(localArticles)
+                    }
                 }
             } catch (e: Exception) {
-                // Xử lý lỗi kết nối
-                Log.e("NewsRepository", "Lỗi kết nối: ${e.message}")
-                e.printStackTrace()
+                throw e
             }
         }
+    }
+
+    /**
+     * Hàm đảo ngược trạng thái yêu thích.
+     * ĐÂY LÀ NƠI DỄ GÂY LỖI 'if must have both branches'
+     */
+    suspend fun toggleFavorite(article: Article) {
+        // CÁCH VIẾT SAI GÂY LỖI: article.isFavorite = if (article.isFavorite) false
+
+        // CÁCH VIẾT ĐÚNG 1: Sử dụng ! (Nên dùng cách này cho Boolean)
+        article.isFavorite = !article.isFavorite
+
+        // CÁCH VIẾT ĐÚNG 2 (Nếu dùng if): Phải có đủ ELSE
+        // article.isFavorite = if (article.isFavorite) false else true
+
+        articleDao.updateArticle(article)
     }
 }

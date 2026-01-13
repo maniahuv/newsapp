@@ -1,12 +1,18 @@
 package com.example.newsapp.data.remote
 
-import com.example.newsapp.data.local.Article
+import com.google.gson.annotations.SerializedName
 
-// File: data/remote/NewsResponse.kt
+/**
+ * Lớp đại diện cho phản hồi cấp cao nhất từ NewsAPI.
+ * Khi API trả về kết quả thành công, nó sẽ khớp với cấu trúc này.
+ */
 data class NewsResponse(
-    val status: String,
-    val totalResults: Int,
-    val articles: List<ArticleDto>
+    @SerializedName("status")
+    val status: String?, // "ok" hoặc "error"
+
+    @SerializedName("totalResults")
+    val totalResults: Int?, // Tổng số bài báo tìm thấy
+
+    @SerializedName("articles")
+    val articles: List<ArticleDto>? // Danh sách các bài báo chi tiết
 )
-
-

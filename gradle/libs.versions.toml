@@ -1,14 +1,15 @@
 [versions]
-agp = "8.13.2"
+agp = "8.7.3"       # Hạ cấp xuống bản ổn định
 kotlin = "1.9.24"
-coreKtx = "1.17.0"
+coreKtx = "1.15.0"   # Bản ổn định cho SDK 35
 junit = "4.13.2"
-junitVersion = "1.3.0"
-espressoCore = "3.7.0"
-appcompat = "1.7.1"
-material = "1.13.0"
-activity = "1.12.2"
-constraintlayout = "2.2.1"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+appcompat = "1.7.0"  # Bản ổn định cho SDK 35
+material = "1.12.0"  # Bản ổn định cho SDK 35
+activity = "1.9.3"   # Bản ổn định cho SDK 35
+constraintlayout = "2.2.0"
+navigation = "2.7.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -24,4 +25,4 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
-
+navigation-safeargs = { id = "androidx.navigation.safeargs.kotlin", version.ref = "navigation" }

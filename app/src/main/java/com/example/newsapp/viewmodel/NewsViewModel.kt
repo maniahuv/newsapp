@@ -14,36 +14,39 @@ import kotlinx.coroutines.launch
  */
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
-    // 1. Quan sát danh sách bài báo từ Repository (Single Source of Truth từ Room)
+    // 1. Quan sát danh sách bài báo từ Repository (Single Source of Truth)
     val allArticles: LiveData<List<Article>> = repository.allArticles
 
-    // 2. Trạng thái Loading để hiển thị ProgressBar trên UI
+    // 2. Quan sát danh sách bài báo yêu thích
+    val favoriteArticles: LiveData<List<Article>> = repository.favoriteArticles
+
+    // 3. Trạng thái Loading để hiển thị ProgressBar trên UI
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> get() = _isLoading
 
-    // 3. Thông báo lỗi để hiển thị Toast hoặc Snackbar khi có sự cố (mất mạng, lỗi API)
+    // 4. Thông báo lỗi để hiển thị cho người dùng
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> get() = _errorMessage
 
     init {
-        // Tự động tải tin tức mới ngay khi App vừa mở
+        // Tự động tải tin tức mới ngay khi khởi tạo ViewModel
         refreshNews()
     }
 
     /**
-     * Yêu cầu Repository cập nhật dữ liệu từ Server.
+     * Làm mới danh sách tin tức từ Server.
      */
     fun refreshNews() {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null // Xóa lỗi cũ trước khi thử lại
+            _errorMessage.value = null
 
             try {
-                // Sử dụng instance của RetrofitClient đã định nghĩa sẵn
+                // Gọi Repository để lấy dữ liệu mới từ API và cập nhật Database
                 repository.refreshArticles(RetrofitClient.instance)
             } catch (e: Exception) {
-                // Xử lý các lỗi ngoại lệ không lường trước (ví dụ: lỗi parsing)
-                _errorMessage.value = "Không thể cập nhật tin tức: ${e.message}"
+                // Xử lý các lỗi kết nối hoặc phân tích dữ liệu
+                _errorMessage.value = "Không thể cập nhật tin tức: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
             }
@@ -51,7 +54,42 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     /**
-     * Hàm dùng để xóa thông báo lỗi sau khi UI đã hiển thị xong (tránh lặp lại lỗi)
+     * Chức năng thay đổi trạng thái "Yêu thích" của bài báo.
+     */
+    fun toggleFavorite(article: Article) {
+        viewModelScope.launch {
+            try {
+                repository.toggleFavorite(article)
+            } catch (e: Exception) {
+                _errorMessage.value = "Không thể cập nhật trạng thái yêu thích"
+            }
+        }
+    }
+
+    /**
+     * (Tùy chọn) Chức năng tìm kiếm tin tức theo từ khóa.
+     */
+    fun searchNews(query: String) {
+        if (query.isBlank()) {
+            refreshNews()
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                // Logic tìm kiếm có thể được bổ sung thêm vào Repository
+                // Ví dụ: repository.searchArticles(RetrofitClient.instance, query)
+            } catch (e: Exception) {
+                _errorMessage.value = "Lỗi tìm kiếm: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Xóa thông báo lỗi sau khi đã hiển thị trên UI.
      */
     fun clearErrorMessage() {
         _errorMessage.value = null
